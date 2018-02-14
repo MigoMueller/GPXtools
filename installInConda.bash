@@ -1,5 +1,6 @@
 #!/bin/bash
-conda create --name gpx -python=3 astropy matplotlib ipykernel ipython lxml cartopy fiona
+source activate root
+conda create --name gpx python=3 astropy matplotlib ipykernel ipython lxml cartopy fiona
 # ipykernel: so this env shows up in Jupyter notebook
 # lxml: speeds up gpxpy
 # fiona: Pythonic IO-lib for geo data formats including gpx, shapes only (time info is forgotten).
