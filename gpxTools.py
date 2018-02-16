@@ -7,6 +7,7 @@
 # * Separate out .py functions for plotting, merging, and for showing sorted start and end times.
 # * Develop tool to split files with various segments
 # * Develop tool to fill time gaps (think: in Tahuna coverage) with 'filler' file (think: Strava file or files)
+# Automate download from Tahuna: in app, share link w/ owncloud.  On computer, curl link, grep output for "?uniqueid=" and "href".  Will output two lines containing track URL.  Extract.  Curl.  Tried that on console, got funny looking output. Encoding issue?  Opening the same link in Firefox provides a box "download track.gpx?"   ?
 
 
 import matplotlib.pyplot as plt
