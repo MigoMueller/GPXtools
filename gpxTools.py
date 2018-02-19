@@ -5,7 +5,6 @@
 
 # TODO: 
 # * Separate out .py functions for plotting, merging, and for showing sorted start and end times.
-# * Develop tool to split files with various segments
 # * Develop tool to fill time gaps (think: in Tahuna coverage) with 'filler' file (think: Strava file or files)
 # * Overload privacyZone and stravaUpload so as to work from files in memory (ASCII lists?) rather than on the disk.  Parm fileOutput=True or something.
 # * Make Strava upload a method (token in keyring)
@@ -130,96 +129,96 @@ class gpxTools:
         with open(outFileName, 'w') as out:
             out.write(output)
 
-    # ### Geocoding: get coords matching address and vice-versa.
-    # Get coords of addresses using geopy: https://pypi.python.org/pypi/geopy  -- maybe make that geocoder, instead (actively developed as of Feb 2018)
+# ### Geocoding: get coords matching address and vice-versa.
+# Get coords of addresses using geopy: https://pypi.python.org/pypi/geopy  -- maybe make that geocoder, instead (actively developed as of Feb 2018)
 
-    from geopy.geocoders import Nominatim
-    def getCoordsFromAddress(self, address):
-        geolocator=Nominatim()
-        return geolocator.geocode(address)
-    def getAddressFromCoords(self, coordString):
-        geolocator=Nominatim()
-        return geolocator.reverse(coordString)
+from geopy.geocoders import Nominatim
+def getCoordsFromAddress(address):
+    geolocator=Nominatim()
+    return geolocator.geocode(address)
+def getAddressFromCoords(coordString):
+    geolocator=Nominatim()
+    return geolocator.reverse(coordString)
 
-    #geolocator.geocode('Voorstraat 80, 8715JC ')
-    #geolocator.reverse('52, 15')
-    #geolocator.geocode('Kassel')
-    #geolocator.geocode('Hilo').latitude
+#geolocator.geocode('Voorstraat 80, 8715JC ')
+#geolocator.reverse('52, 15')
+#geolocator.geocode('Kassel')
+#geolocator.geocode('Hilo').latitude
 
-    class privacyZone:
-        def __init__(self, addresses, radii):
-            self.radii=[r.to(u.meter).value for r in radii]
-            if len(addresses) != len(radii):
-                print("Please provide one radius per address / coordinate!")
-                print(len(addresses), "addresses / coordinates were passes,")
-                print(len(radii), "radii.")
-                raise ValueError("gpxTools:privacyZone: nAddresses != nRadii")
-            try:
-                addresses[0].latitude
-                self.coords=addresses # assume coordinates were passed instead of addresses; no need to call Nominatim
-                return
-            except AttributeError:
-                pass # assume addresses were passes
-            self.coords=[self.getCoordsFromAddress(add) for add in addresses]
+class privacyZone:
+    def __init__(self, addresses, radii):
+        self.radii=[r.to(u.meter).value for r in radii]
+        if len(addresses) != len(radii):
+            print("Please provide one radius per address / coordinate!")
+            print(len(addresses), "addresses / coordinates were passes,")
+            print(len(radii), "radii.")
+            raise ValueError("gpxTools:privacyZone: nAddresses != nRadii")
+        try:
+            addresses[0].latitude
+            self.coords=addresses # assume coordinates were passed instead of addresses; no need to call Nominatim
             return
-        def isPointTooClose(self, p):
-            for coo, r in zip(self.coords, self.radii):
-                if p.distance_2d(coo) < r:
-                    return True
-            return False
+        except AttributeError:
+            pass # assume addresses were passes
+        self.coords=[self.getCoordsFromAddress(add) for add in addresses]
+        return
+    def isPointTooClose(self, p):
+        for coo, r in zip(self.coords, self.radii):
+            if p.distance_2d(coo) < r:
+                return True
+        return False
     
-    def applyPrivacyZone(self,inFileName, coordsAddresses, radii, outFileName=None):
-        """
-        Copy GPX track from inFileName into outFileName, rejecting all waypoints
-        within a "privacy zone" defined in arrays (of equal length!)
-        "coordsAddresses" (GPS coordinates or unquely resolvable addresses)
-        and "radii" (as Astropy Quantities).
-        outFileName defaults to inFile_pz.gpx 
-        """
-        if outFileName is None:
-            outFileName=inFileName[:inFileName.index('.gpx')]+'_pz.gpx'
-        pz = self.privacyZone(coordsAddresses, radii)
-        with open(inFileName, 'r') as f:
-            parser=gpxParser.GPXParser(f)
-            parser.parse()
-            gpx=parser.gpx
-        # Delete points within privacyZone
-        for track in gpx.tracks:
-            for seg in track.segments:
-                ### Watch out: can't pop from a list while iterating (forward!) over it
-                ###   (it's not syntactically forbidden, but it messes with indexing)
-                ### So, iterating backward.
-                for i in range(len(seg.points)-1, -1, -1):
-                    if pz.isPointTooClose(seg.points[i]):
-                        seg.points.pop(i)
-        with open(outFileName, 'w') as out:
-            out.write(gpx.to_xml())
-        return
+def applyPrivacyZone(inFileName, coordsAddresses, radii, outFileName=None):
+    """
+    Copy GPX track from inFileName into outFileName, rejecting all waypoints
+    within a "privacy zone" defined in arrays (of equal length!)
+    "coordsAddresses" (GPS coordinates or unquely resolvable addresses)
+    and "radii" (as Astropy Quantities).
+    outFileName defaults to inFile_pz.gpx 
+    """
+    if outFileName is None:
+        outFileName=inFileName[:inFileName.index('.gpx')]+'_pz.gpx'
+    pz = privacyZone(coordsAddresses, radii)
+    with open(inFileName, 'r') as f:
+        parser=gpxParser.GPXParser(f)
+        parser.parse()
+        gpx=parser.gpx
+    # Delete points within privacyZone
+    for track in gpx.tracks:
+        for seg in track.segments:
+            ### Watch out: can't pop from a list while iterating (forward!) over it
+            ###   (it's not syntactically forbidden, but it messes with indexing)
+            ### So, iterating backward.
+            for i in range(len(seg.points)-1, -1, -1):
+                if pz.isPointTooClose(seg.points[i]):
+                    seg.points.pop(i)
+    with open(outFileName, 'w') as out:
+        out.write(gpx.to_xml())
+    return
 
-    def getGpxFromTahuna(self,linkFileName, outFileName='track.gpx'):
-        """
-        linkFileName = link to GPX track page generated by Tahuna app
-        Download GPX track to file outFileName.
-        M.Mueller@astro.rug.nl, 2018/02/19
-        """
-        if not os.path.isfile(linkFileName):
-            raise ValueError("Can't open "+linkFileName)
-        if os.path.isfile(outFileName):
-            raise ValueError("Output file "+outFileName+" already exists!")
-        url1 = open(linkFileName).read().strip()
-        with requests.get(url1) as r:
-            for line in r:
-                # Extract download URL from first line containing href and ?uniqueid
-                if (b'?uniqueid' in line) and (b'href' in line):
-                    # URL sits between ""
-                    trackUrl=line.decode().split('"')[1]
-                    break
-        out=open(outFileName, 'w')
-        # requests.get takes care of uncompressing content:
-        with requests.get(trackUrl) as r: 
-            for line in r:
-                out.write(line.decode())
-        return
+def getGpxFromTahuna(linkFileName, outFileName='track.gpx'):
+    """
+    linkFileName = link to GPX track page generated by Tahuna app
+    Download GPX track to file outFileName.
+    M.Mueller@astro.rug.nl, 2018/02/19
+    """
+    if not os.path.isfile(linkFileName):
+        raise ValueError("Can't open "+linkFileName)
+    if os.path.isfile(outFileName):
+        raise ValueError("Output file "+outFileName+" already exists!")
+    url1 = open(linkFileName).read().strip()
+    with requests.get(url1) as r:
+        for line in r:
+            # Extract download URL from first line containing href and ?uniqueid
+            if (b'?uniqueid' in line) and (b'href' in line):
+                # URL sits between ""
+                trackUrl=line.decode().split('"')[1]
+                break
+    out=open(outFileName, 'w')
+    # requests.get takes care of uncompressing content:
+    with requests.get(trackUrl) as r: 
+        for line in r:
+            out.write(line.decode())
+    return
     
 
 
