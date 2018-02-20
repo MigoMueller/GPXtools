@@ -83,8 +83,12 @@ class stravaUploader():
             self.end_headers()
             self.wfile.write('Requested temporary access token from Strava.\n'.encode())
             #Get the API code for Strava
-            code = urlparse.parse_qs(urlparse.urlparse(self.path).query)['code'][0]
-            self.wfile.write('Success!  Requesting permanent access token.\n'.encode())
+            try:
+                code = urlparse.parse_qs(urlparse.urlparse(self.path).query)['code'][0]
+                self.wfile.write('Success!  Requesting permanent access token.\n'.encode())
+            except KeyError:
+                self.wfile.write("Access was denied by user".encode())
+                assert False
             try:
                 self.stravaUploaderInstance.getAccessToken(code)
                 self.wfile.write('Success!  Now upload track.\n'.encode())
