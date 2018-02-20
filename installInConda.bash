@@ -9,6 +9,7 @@ conda install -c conda-forge gpxpy
 # support GPX files
 conda install -c conda-forge geopy 
 # retrieve coords of addresses
+pip install stravalib
 
 source activate root
 conda install nb_conda
