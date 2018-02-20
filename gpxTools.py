@@ -4,10 +4,8 @@
 # Tools to view, merge, and manipulate GPX tracks from bike apps.
 
 # TODO: 
-# * Separate out .py functions for plotting, merging, and for showing sorted start and end times.
 # * Develop tool to fill time gaps (think: in Tahuna coverage) with 'filler' file (think: Strava file or files)
 # * Overload privacyZone and stravaUpload so as to work from files in memory (ASCII lists?) rather than on the disk.  Parm fileOutput=True or something.
-# * Make Strava upload a method (token in keyring)
 # * in merge / privacyZone: correct bounding box / trip length (Strava keeps correcting them)
 
 
