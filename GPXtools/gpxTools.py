@@ -204,6 +204,7 @@ def getGpxFromTahuna(linkFileName, outFileName='track.gpx'):
     if os.path.isfile(outFileName):
         raise ValueError("Output file "+outFileName+" already exists!")
     url1 = open(linkFileName).read().strip()
+    trackUrl=None
     with requests.get(url1) as r:
         for line in r:
             # Extract download URL from first line containing href and ?uniqueid
@@ -211,6 +212,8 @@ def getGpxFromTahuna(linkFileName, outFileName='track.gpx'):
                 # URL sits between ""
                 trackUrl=line.decode().split('"')[1]
                 break
+    if trackUrl is None:
+        raise ValueError("Couldn't find URL pointing to track in file linked from %s"%linkFileName)
     out=open(outFileName, 'w')
     # requests.get takes care of uncompressing content:
     with requests.get(trackUrl) as r: 
