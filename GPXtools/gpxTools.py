@@ -206,11 +206,12 @@ def getGpxFromTahuna(linkFileName, outFileName='track.gpx'):
     url1 = open(linkFileName).read().strip()
     trackUrl=None
     with requests.get(url1) as r:
-        for line in r:
+        lines=r.text.split('\n')
+        for line in lines:
             # Extract download URL from first line containing href and ?uniqueid
-            if (b'?uniqueid' in line) and (b'href' in line):
+            if ('?uniqueid' in line) and ('href' in line):
                 # URL sits between ""
-                trackUrl=line.decode().split('"')[1]
+                trackUrl=line.split('"')[1]
                 break
     if trackUrl is None:
         raise ValueError("Couldn't find URL pointing to track in file linked from %s"%linkFileName)
