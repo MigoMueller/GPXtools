@@ -110,9 +110,13 @@ class stravaUploader():
         httpd.handle_request()  
         # This should obtain and save token, and authenticate self.client
         return
-    def __init__(self, inputFileName, activityName=None, commute=None, private=None):
+    def __init__(self, inputFileName, activityName=None, commute=None, private=None, batchmode=False):
+        # batchmode: won't open web browser, neither to view track, nor to get user consent if no token is present
         self.client=Client()
         if not self.authenticateFromToken():
+            if batchmode:
+                print("No token present in batch mode: Strava upload failed")
+                return
             self.getUserConsent()
         try:
             fileObject=open(inputFileName,'r')
@@ -122,6 +126,10 @@ class stravaUploader():
         try:
             returnValue=self.client.upload_activity(fileObject, data_type='gpx', activity_type='ride', private=True)
             print("Track uploaded to Strava, processing")
+            while not returnValue.is_complete:
+                print('.')
+                time.sleep(1)
+                returnValue.poll()
         except ActivityUploadFailed as e:
             print("Strava upload failed:")
             print(e)
@@ -130,16 +138,13 @@ class stravaUploader():
             print(e)
             print(e.__class__)  
             raise
-        while not returnValue.is_complete:
-            print('.')
-            time.sleep(1)
-            returnValue.poll()
         if returnValue.is_error:
-            print ('Upload failed!')
+            print ('Upload failed!') # Can we ever get here?
             return
         print('Upload succeeded!')
         activityID = returnValue.activity_id
         self.client.update_activity(activityID, name=activityName, commute=commute, private=private)
-        webbrowser.open('https://www.strava.com/activities/%i'%activityID)
+        if not batchmode:
+            webbrowser.open('https://www.strava.com/activities/%i'%activityID)
         return
 
