@@ -143,6 +143,27 @@ def getAddressFromCoords(coordString):
 #geolocator.geocode('Kassel')
 #geolocator.geocode('Hilo').latitude
 
+def shiftTimes(inFileName, nHours, outFileName=None):
+    """
+    add nHours hours to all times given in inFileName (waypoints)
+    outFileName defaults to inFile_timewarp.gpx
+    """
+    from datetime import timedelta
+    if outFileName is None:
+        outFileName=inFileName[:inFileName.index('.gpx')]+'_timewarp.gpx'
+    timeShift=timedelta(hours=nHours)
+    with open(inFileName, 'r') as f:
+        parser=gpxParser.GPXParser(f)
+        parser.parse()
+        gpx=parser.gpx
+    for track in gpx.tracks:
+        for seg in track.segments:
+            for point in seg.points:
+                point.time = point.time+timeShift
+    with open(outFileName, 'w') as out:
+        out.write(gpx.to_xml())
+    return    
+
 class privacyZone:
     def __init__(self, addresses, radii):
         self.radii=[r.to(u.meter).value for r in radii]
@@ -169,7 +190,7 @@ def applyPrivacyZone(inFileName, coordsAddresses, radii, outFileName=None):
     """
     Copy GPX track from inFileName into outFileName, rejecting all waypoints
     within a "privacy zone" defined in arrays (of equal length!)
-    "coordsAddresses" (GPS coordinates or unquely resolvable addresses)
+    "coordsAddresses" (GPS coordinates or uniquely resolvable addresses)
     and "radii" (as Astropy Quantities).
     outFileName defaults to inFile_pz.gpx 
     """
