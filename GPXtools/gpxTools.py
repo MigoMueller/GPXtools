@@ -104,7 +104,7 @@ class gpxTools:
             endTimes.append(gpx.tracks[-1].segments[-1].points[-1].time)
         idx=np.argsort(startTimes)
         gpxesSorted=np.array(gpxes)[idx]
-        fnSorted=np.array(files)[idx]
+        fnSorted=np.array(fileNames)[idx]
         startTimesSorted=np.array(startTimes)[idx]
         endTimesSorted=np.array(endTimes)[idx]
 
