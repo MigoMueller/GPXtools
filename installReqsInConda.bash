@@ -1,20 +1,40 @@
 #!/bin/bash
-source activate root
-conda create --name gpx python=3 astropy matplotlib ipykernel ipython lxml cartopy fiona -y
+
+## Call with flag -y for all installs to be non-interactive.
+## Otherwise, user gets to agree to all conda installs.
+
+flag=
+while getopts ":y" opt; do
+  case $opt in
+    y)
+	flag='-y'
+      ;;
+    \?)
+	echo "Invalid option: -$OPTARG" >&2
+	exit 1
+      ;;
+  esac
+done
+
+
+source $(dirname $CONDA_EXE)/../etc/profile.d/conda.sh
+## This is a bit of a hack to get 'conda' working within
+## non-interactive shell; works as of Oct 2019.
+
+conda activate root
+conda install nb_conda $flag
+# for kernels to appear in Jupyter notebooks
+conda create --name gpx python=3 astropy matplotlib ipykernel jupyter ipython lxml cartopy fiona $flag
 # ipykernel: so this env shows up in Jupyter notebook
 # lxml: speeds up gpxpy
 # fiona: Pythonic IO-lib for geo data formats including gpx, shapes only (time info is forgotten).
-source activate gpx
+conda activate gpx
 if [ "$?" -eq "0" ]
 then
-    conda install -c conda-forge gpxpy -y
+    conda install -c conda-forge gpxpy $flag
     # support GPX files
-    conda install -c conda-forge geopy -y
+    conda install -c conda-forge geopy $flag
     # retrieve coords of addresses
     pip install stravalib
     # Strava
-    source activate root
-    conda install nb_conda -y
-    # for kernels to appear in Jupyter notebooks
-    source activate gpx
 fi

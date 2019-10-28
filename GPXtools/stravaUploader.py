@@ -3,14 +3,11 @@
 ### Save 'client ID' including password into file 'client.secret'
 ### and/or read-write token into file 'token'
 ### Strava uses OAuth2 for authentification.
-### If valid token is present in file 'token', everthing is straightforward.
+### If valid token is present in file 'token', everything is straightforward.
 ### Otherwise, the code will open Strava in a browser window for user to grant permission (if needed); the token will then be saved locally.
 ###
 ### Main routine: constructor, like so:
 ### stravaUploader(gpxFileName, activityName='test', commute=True)
-
-## To do:
-## * instead of ASCII file, move token into OS keyring (import keyring or something)
 
 from stravalib import Client
 from stravalib.exc import AccessUnauthorized, ActivityUploadFailed
