@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 import gpxpy.parser as gpxParser
 import numpy as np
-import astropy.units as u
+from units import unit
 import glob
 import gpxpy
 import fiona
@@ -166,7 +166,7 @@ def shiftTimes(inFileName, nHours, outFileName=None):
 
 class privacyZone:
     def __init__(self, addresses, radii):
-        self.radii=[r.to(u.meter).value for r in radii]
+        self.radii = [unit('m')(r).num for r in radii] # convert to meter
         if len(addresses) != len(radii):
             print("Please provide one radius per address / coordinate!")
             print(len(addresses), "addresses / coordinates were passes,")
@@ -191,7 +191,7 @@ def applyPrivacyZone(inFileName, coordsAddresses, radii, outFileName=None):
     Copy GPX track from inFileName into outFileName, rejecting all waypoints
     within a "privacy zone" defined in arrays (of equal length!)
     "coordsAddresses" (GPS coordinates or uniquely resolvable addresses)
-    and "radii" (as Astropy Quantities).
+    and "radii" (as units.quantity Quantities).
     outFileName defaults to inFile_pz.gpx 
     """
     if outFileName is None:
