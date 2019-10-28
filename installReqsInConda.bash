@@ -16,10 +16,7 @@ while getopts ":y" opt; do
   esac
 done
 
-
-source $(dirname $CONDA_EXE)/../etc/profile.d/conda.sh
-## This is a bit of a hack to get 'conda' working within
-## non-interactive shell; works as of Oct 2019.
+source $(conda info --base)/etc/profile.d/conda.sh
 
 conda activate root
 conda install nb_conda $flag
