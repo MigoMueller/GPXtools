@@ -95,21 +95,8 @@ class stravaUploader():
         self.updateTokens( self.client.exchange_code_for_token(
             client_id=self.cl_id, client_secret=self.cl_secret, code=code))
         return
-    
-    #### MUSS NOCH
-    #def getAccessToken(self,code):
-    #    """
-    #    Use temp code retrieved from web request to get access token, save to file.
-    #     """
-    #    #print("Requesting access token")
-    #    access_token = self.client.exchange_code_for_token(client_id=self.cl_id,
-    #                                               client_secret=self.cl_secret, code=code)
-    #    if not self.authenticateFromToken(access_token):
-    #        raise ValueError("Access token just obtained doesn't appear to work!")
-    #    print("Writing token to file")
-    #    open(self.tokenFile, 'w').write(access_token+'\n')
-    #    return
 
+    
     ## The trick to have the HTTP server populate the 'instance' inside the handler is copied from
     ## https://stackoverflow.com/questions/18444395/basehttprequesthandler-with-custom-instance#26724272
     class StravaServer(HTTPServer):
