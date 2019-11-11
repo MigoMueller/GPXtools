@@ -82,7 +82,6 @@ class stravaUploader():
         self.client.access_token = self.client.token_response['access_token']
         self.client.token_expires_at = self.client.token_response['expires_at']
         athlete=self.client.get_athlete() # does access token work?
-        self.client.authenticated=True
         open(self.refreshTokenFile, 'w').write(self.client.token_response['refresh_token']+'\n')
         return
 
@@ -119,18 +118,19 @@ class stravaUploader():
                 code = urlparse.parse_qs(urlparse.urlparse(self.path).query)['code'][0]
             except KeyError :
                 self.wfile.write("Access was denied by user".encode())
-                assert False # think of some better error handling here...
+                self.stravaUploaderInstance.client.access_token = None
+                return
             scope = urlparse.parse_qs(urlparse.urlparse(self.path).query)['scope'][0]
-            for s in self.stravaUploaderInstance.scopesNeeded:
-                assert s in scope # This, too, needs refinement.....
-            self.wfile.write('Success!  Requesting permanent access token.\n'.encode())
+            self.stravaUploaderInstance.scopesGranted = scope
+            self.wfile.write('Success!  Requesting permanent refresh token.\n'.encode())
             try:
                 self.stravaUploaderInstance.getAccessToken(code)
-                self.wfile.write('Success!  Now upload track.\n'.encode())
+                self.wfile.write('Strava authentication successful.\n'.encode())
             except Exception as e:
                 print("Something went wrong:")
                 print(e)
                 print(e.__class__)
+                self.wfile.write( (e.str()+'\n').encode() )
                 ## Any cleaning-up to do?  Close HTTP server or something?
                 raise
             return
@@ -144,21 +144,34 @@ class stravaUploader():
         authorize_url = self.client.authorization_url(client_id=self.cl_id, redirect_uri=redirectUrl, scope=self.scopesNeeded)
         httpd = self.StravaServer((self.redirectHost, self.port), self.StravaAuthHandler, self)
         dummy=webbrowser.open(authorize_url)
-        httpd.handle_request()  
-        # Obtain and save refresh token, and authenticate self.client
+        httpd.handle_request()
+        if self.client.access_token is None :
+            # User denied authorization (see StravaAuthHandler.do_GET)
+            print( "Please authorize this tool to access your Strava data; it won't work otherwise" )
+            raise RuntimeError( 'Authorization denied' )
         return
 
     
     def __init__(self, inputFileName, activityName=None, commute=None, private=None, batchmode=False):
         # batchmode: won't open web browser, neither to view track, nor to get user consent if no token is present
         self.client=Client()
+        self.batchmode = batchmode
         # Read in client ID and password:
         self.cl_id,self.cl_secret=open(self.clientIDfile).read().strip().split(',')
         if not self.authenticateFromRefreshToken():
             if batchmode:
                 print("No token present in batch mode: Strava upload failed")
                 return
-            self.getUserConsent()
+            try :
+                self.getUserConsent()
+            except RuntimeError as e :
+                print( e )
+                return
+            for s in self.scopesNeeded :
+                if s not in self.scopesGranted :
+                    print( "Insufficient permissions granted: "+self.scopesGranted+", but need "+",".join(self.scopesNeeded) )
+                    print( "Consider deleting file ", self.refreshTokenFile )
+                    return
         try:
             fileObject=open(inputFileName,'r')
         except:
