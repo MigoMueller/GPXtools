@@ -33,10 +33,6 @@ class stravaUploader():
     Update 2019/11/09+, M.Mueller@astro.rug.nl:
       new Strava authentication scheme using access tokens and refresh tokens.
     """
-    ### let these be defined in constructor:
-    tokenFile='token' # access token; expiry date; refresh token
-    clientIDfile = 'client.secret' # IDs my software: clientID,secret (separated by comma)
-    scopesNeeded = ['activity:read_all','activity:write']  # hard-wire for now.  Make more flexible for stand-alone authenticator class?
     port = 5000
     redirectHost='localhost'
 
@@ -178,10 +174,13 @@ class stravaUploader():
         # !!!!!!!!
         #
         self.checkAccessAlwaysThorough=checkAccessAlwaysThorough
-        self.client=Client()
+        self.tokenFile='token' # access token; expiry date; refresh token
+        self.clientIDfile = 'client.secret' # IDs my software: clientID,secret (separated by comma)
+        self.scopesNeeded = ['activity:read_all','activity:write']  # hard-wire for now.  Make more flexible for stand-alone authenticator class?
         self.batchmode = batchmode
         # Read in client ID and password:
         self.cl_id,self.cl_secret=open(self.clientIDfile).read().strip().split(',')
+        self.client=Client()
         if not self.authenticateFromFile():
             if batchmode:
                 print("No token present in batch mode: Strava authentication failed")
