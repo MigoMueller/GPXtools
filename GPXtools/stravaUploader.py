@@ -49,13 +49,12 @@ class stravaUploader():
         assert len(dummy) == 3
         dummy[1] = int(dummy[1])
         self.client.access_token = dummy[0]
-        self.client.token_expires_at = dummy[1]
-        self.client.token_response = {}
+        self.client.tokenDict = {}
         keys = ['access_token', 'expires_at', 'refresh_token']
         for k,v in zip(keys,dummy) :
-            self.client.token_response[k]=v
+            self.client.tokenDict[k]=v
         ### Check if access_token is valid for at least another hour
-        if self.client.token_expires_at - time.time() > 3600 : # time in seconds since epoch
+        if self.client.tokenDict['expires_at'] - time.time() > 3600 : # time in seconds since epoch
             ## future: if thoroughCheck do check
             print( 'access token should be good, still' )
             return True
@@ -78,7 +77,7 @@ class stravaUploader():
         """
         Retrieve new access token and save in client.  Save (new?) refresh token in file.
         """
-        refreshToken = self.client.token_response['refresh_token']
+        refreshToken = self.client.tokenDict['refresh_token']
         self.updateTokens( self.client.refresh_access_token( \
             client_id=self.cl_id, client_secret=self.cl_secret, \
             refresh_token=refreshToken ))
@@ -91,9 +90,8 @@ class stravaUploader():
         Argument response assumed to be dictionary with three elements 'access_token', 'refresh_token', 'expires_at'
         """
         #print( 'Updating tokens in client')
-        self.client.token_response = response
-        self.client.access_token = self.client.token_response['access_token']
-        self.client.token_expires_at = self.client.token_response['expires_at']
+        self.client.tokenDict = response
+        self.client.access_token = self.client.tokenDict['access_token']
         athlete=self.client.get_athlete() # does access token work?
         outputText = "%s %i %s"%(response['access_token'], response['expires_at'], response['refresh_token'])
         open(self.tokenFile, 'w').write(outputText+'\n')
