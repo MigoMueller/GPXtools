@@ -33,22 +33,36 @@ class stravaUploader():
     Update 2019/11/09+, M.Mueller@astro.rug.nl:
       new Strava authentication scheme using access tokens and refresh tokens.
     """
-    refreshTokenFile='token' # read-write access to athlete's data
+    tokenFile='token' # access token; expiry date; refresh token
     clientIDfile = 'client.secret' # IDs my software: clientID,secret (separated by comma)
     scopesNeeded = ['activity:read_all','activity:write']  # hard-wire for now.  Make more flexible for stand-alone authenticator class?
     port = 5000
     redirectHost='localhost'
 
-    def authenticateFromRefreshToken(self, refreshToken=None):
+    def authenticateFromFile( self ):
         """
         Connect client using refresh token, return whether or not that succeeded
         """
-        if refreshToken is None:
-            if not os.path.isfile(self.refreshTokenFile):
-                return False        
-            refreshToken=open(self.refreshTokenFile).read().strip()
+        if not os.path.isfile(self.tokenFile):
+            return False
+        dummy = open(self.tokenFile).read().strip().split()
+        assert len(dummy) == 3
+        dummy[1] = int(dummy[1])
+        self.client.access_token = dummy[0]
+        self.client.token_expires_at = dummy[1]
+        self.client.token_response = {}
+        keys = ['access_token', 'expires_at', 'refresh_token']
+        for k,v in zip(keys,dummy) :
+            self.client.token_response[k]=v
+        ### Check if access_token is valid for at least another hour
+        if self.client.token_expires_at - time.time() > 3600 : # time in seconds since epoch
+            ## future: if thoroughCheck do check
+            print( 'access token should be good, still' )
+            return True
         try:
-            self.refreshAccessToken( refreshToken )
+            print( 'Refreshing access token' )
+            self.refreshAccessToken( )
+            ## throughCheck (see above)
             dummy=self.client.get_athlete().weight # will fail if token invalid
             return True
         except AccessUnauthorized:
@@ -60,12 +74,11 @@ class stravaUploader():
             print(str(e))
             raise
 
-    def refreshAccessToken( self, refreshToken=None ):
+    def refreshAccessToken( self ):
         """
         Retrieve new access token and save in client.  Save (new?) refresh token in file.
         """
-        if refreshToken is None :
-            refreshToken = client.token_response['refresh_token']
+        refreshToken = self.client.token_response['refresh_token']
         self.updateTokens( self.client.refresh_access_token( \
             client_id=self.cl_id, client_secret=self.cl_secret, \
             refresh_token=refreshToken ))
@@ -82,7 +95,8 @@ class stravaUploader():
         self.client.access_token = self.client.token_response['access_token']
         self.client.token_expires_at = self.client.token_response['expires_at']
         athlete=self.client.get_athlete() # does access token work?
-        open(self.refreshTokenFile, 'w').write(self.client.token_response['refresh_token']+'\n')
+        outputText = "%s %i %s"%(response['access_token'], response['expires_at'], response['refresh_token'])
+        open(self.tokenFile, 'w').write(outputText+'\n')
         return
 
     def getAccessToken(self, code):
@@ -130,7 +144,7 @@ class stravaUploader():
                 print("Something went wrong:")
                 print(e)
                 print(e.__class__)
-                self.wfile.write( (e.str()+'\n').encode() )
+                self.wfile.write( (e.__str__()+'\n').encode() )
                 ## Any cleaning-up to do?  Close HTTP server or something?
                 raise
             return
@@ -158,7 +172,7 @@ class stravaUploader():
         self.batchmode = batchmode
         # Read in client ID and password:
         self.cl_id,self.cl_secret=open(self.clientIDfile).read().strip().split(',')
-        if not self.authenticateFromRefreshToken():
+        if not self.authenticateFromFile():
             if batchmode:
                 print("No token present in batch mode: Strava upload failed")
                 return
@@ -170,7 +184,7 @@ class stravaUploader():
             for s in self.scopesNeeded :
                 if s not in self.scopesGranted :
                     print( "Insufficient permissions granted: "+self.scopesGranted+", but need "+",".join(self.scopesNeeded) )
-                    print( "Consider deleting file ", self.refreshTokenFile )
+                    print( "Consider deleting file ", self.tokenFile )
                     return
         try:
             fileObject=open(inputFileName,'r')
