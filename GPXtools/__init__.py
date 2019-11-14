@@ -18,4 +18,4 @@ Tools to mess with bicycle GPS tracks
 """
 
 from . import gpxTools
-from .stravaUploader import stravaUploader
+from .stravaUploader import stravaAtHome
