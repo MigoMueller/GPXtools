@@ -17,7 +17,8 @@ setup(
         'matplotlib',
         'fiona',
         'cartopy',
-        'shapely'
+        'shapely',
+        'pyyaml'
     ],
     license='LICENSE.txt',
     description='Tools to mess with bicycle GPS tracks.',
