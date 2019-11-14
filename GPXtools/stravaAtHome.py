@@ -23,15 +23,26 @@ import time
 #import datetime # for downloads from Strava
 #from lxml import etree # for extensions (sensors etc.)
 
-class stravaAtHome():
+class stravaAtHome( Client ):
     """ 
-    Upload GPX track to Strava.
-    M.Mueller@astro.rug.nl, 2018/02/20
-    For authentification, used some code from 
+    Wrapper around stravalib.Client.
+    Implemented authentication for single home users;
+    secrets and tokens are stored in plain text, so 
+    proceed at your own risk, and never use this tool for sensitive data!
+    Methods:
+      * checkScopes (did user grant all 'scopes' requested?)
+      * uploadGPX
+      * downloadGPX (to be implemented)
+
+    Authentication partly based on code from
     https://github.com/ryanbaumann/Strava-Stream-to-CSV/blob/master/strava-to-csv.py
-    (ported it to Python3, and used a trick to avoid global variables)
-    Update 2019/11/09+, M.Mueller@astro.rug.nl:
-      new Strava authentication scheme using access tokens and refresh tokens.
+
+    M.Mueller@astro.rug.nl
+    Version history:
+    * 0.5: 2018/02/20: make pip installable
+    * 0.6: 2018/03/08: improve GPX uploader
+    * 0.7: 2019/10/28: update to stravalib 0.6 (refresh tokens)
+    * 0.8: 2019/11/15: inherit from stravalib.Client
     """
     port = 5000
     redirectHost='localhost'
@@ -60,7 +71,7 @@ class stravaAtHome():
             return True
         # thorough check requested:
         try :
-            dummy=self.client.get_athlete().weight # will fail if token invalid
+            dummy=self.get_athlete().weight # will fail if token invalid
             return True
         except AccessUnauthorized:
             print("Strava access not authenticated!")
@@ -83,7 +94,7 @@ class stravaAtHome():
         dummy = open(self.tokenFile).read().strip().split()
         assert len(dummy) == 3
         dummy[1] = int(dummy[1]) # expires_at is int (seconds since epoch)
-        self.client.access_token = dummy[0]
+        self.access_token = dummy[0]
         self.expires_at = dummy[1]
         self.refresh_token = dummy[2]
         ### If token present, can't check scopes granted (or can I?).
@@ -103,7 +114,7 @@ class stravaAtHome():
             # No refresh token provided in file, yet can get here (e.g.: user declined authorization)
             return
         # retrieve from Strava
-        response = self.client.refresh_access_token( \
+        response = self.refresh_access_token( \
             client_id=self.cl_id, client_secret=self.cl_secret, \
             refresh_token=self.refresh_token )
         # update in client
@@ -118,10 +129,10 @@ class stravaAtHome():
         Argument response assumed to be dictionary with three elements 'access_token', 'refresh_token', 'expires_at'
         """
         #print( 'Updating tokens in client')
-        self.client.access_token = response['access_token']
+        self.access_token = response['access_token']
         self.expires_at = response['expires_at']
         self.refresh_token = response['refresh_token']
-        #athlete=self.client.get_athlete() # does access token work?  -- checking elsewhere, not here
+        #athlete=self.get_athlete() # does access token work?  -- checking elsewhere, not here
         outputText = "%s %i %s"%(response['access_token'], response['expires_at'], response['refresh_token'])
         open(self.tokenFile, 'w').write(outputText+'\n')
         return
@@ -133,7 +144,7 @@ class stravaAtHome():
         get tokens in exchange for code retrieved from web request.
         """
         #print("Requesting new tokens")
-        response = self.client.exchange_code_for_token(
+        response = self.exchange_code_for_token(
             client_id=self.cl_id, client_secret=self.cl_secret, code=code)
         self.updateTokens( response )
         return
@@ -161,7 +172,7 @@ class stravaAtHome():
                 code = urlparse.parse_qs(urlparse.urlparse(self.path).query)['code'][0]
             except KeyError :
                 self.wfile.write("Access was denied by user".encode())
-                self.stravaUploaderInstance.client.access_token = None
+                self.stravaUploaderInstance.access_token = None
                 return
             scope = urlparse.parse_qs(urlparse.urlparse(self.path).query)['scope'][0]
             self.stravaUploaderInstance.scopesGranted = scope
@@ -185,18 +196,18 @@ class stravaAtHome():
         retrieve tokens from server and save them.
         """
         redirectUrl='http://'+self.redirectHost+':%d/authorized' % self.port
-        authorize_url = self.client.authorization_url(client_id=self.cl_id, redirect_uri=redirectUrl, scope=self.scopesNeeded)
+        authorize_url = self.authorization_url(client_id=self.cl_id, redirect_uri=redirectUrl, scope=self.scopesNeeded)
         httpd = self.StravaServer((self.redirectHost, self.port), self.StravaAuthHandler, self)
         dummy=webbrowser.open(authorize_url)
         httpd.handle_request()
-        if self.client.access_token is None :
+        if self.access_token is None :
             # User denied authorization (see StravaAuthHandler.do_GET)
             print( "Please authorize this tool to access your Strava data; it won't work otherwise" )
             raise RuntimeError( 'Authorization denied' )
         return
 
     
-    def __init__( self, batchmode=False, thoroughCheck=True, checkAccessAlwaysThorough=False ):
+    def __init__( self, batchmode=False, thoroughCheck=True, checkAccessAlwaysThorough=False, **keywords ):
         # batchmode: won't open web browser, neither to view track, nor to get user consent if no token is present
         # thoroughCheck: on first call to ensureAccess (in __init__), try to actually
         #   connect to Strava.  Else, access_token is only checked locally,
@@ -214,8 +225,10 @@ class stravaAtHome():
         ## Parse arguments
         # Read in client ID and password:
         self.cl_id,self.cl_secret=open(self.clientIDfile).read().strip().split(',')
-        self.client=Client( )  # make that super() call, with extra keywords
-        self.client.access_token=None  ## unless user has specified access token?!?  disable that?!?
+
+        super().__init__( **keywords )  # any extra keywords are passed on to stravalib.Client
+        
+        self.access_token=None # will overwrite any access token the user may have provided (that's not how this class is intended to be used, anyway)
         self.expires_at = 0
         if not self.authenticateFromFile( thoroughCheck ):
             if batchmode:
@@ -231,7 +244,7 @@ class stravaAtHome():
 
 
     def checkScopes( self ):
-        if self.client.access_token is None :
+        if self.access_token is None :
             return False
         for s in self.scopesNeeded :
             if s not in self.scopesGranted :
@@ -253,7 +266,7 @@ class stravaAtHome():
             print( "Input file %s couldn't be opened for reading"%inputFileName )
             return False
         try:
-            returnValue=self.client.upload_activity(fileObject, data_type='gpx', activity_type=activityType, private=True)
+            returnValue=self.upload_activity(fileObject, data_type='gpx', activity_type=activityType, private=True)
             ## set to private first, change later if requested
             print("Track uploaded to Strava, processing")
             while not returnValue.is_complete:
@@ -273,7 +286,7 @@ class stravaAtHome():
             return False
         print('Upload succeeded!')
         activityID = returnValue.activity_id
-        self.client.update_activity(activityID, name=activityName, commute=commute, private=private)
+        self.update_activity(activityID, name=activityName, commute=commute, private=private)
         if not self.batchmode:
             webbrowser.open('https://www.strava.com/activities/%i'%activityID)
         return True
