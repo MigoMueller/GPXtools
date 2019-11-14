@@ -241,10 +241,9 @@ class stravaAtHome():
         return True
 
     
-    def upload( self, inputFileName, activityName=None, commute=None, private=None, thoroughCheck=False ) :
+    def uploadGPX( self, inputFileName, activityType=None, activityName=None, commute=None, private=None ) :
         """
         Upload GPX file to Strava, return True if successful.
-        Currently limited to 'rides'.
         If not self.batchmode, show uploaded activity in web browser.
         """
         # self.ensureAccess( thoroughCheck ) ## Leave it to user to ensure access!
@@ -254,7 +253,7 @@ class stravaAtHome():
             print( "Input file %s couldn't be opened for reading"%inputFileName )
             return False
         try:
-            returnValue=self.client.upload_activity(fileObject, data_type='gpx', activity_type='ride', private=True)
+            returnValue=self.client.upload_activity(fileObject, data_type='gpx', activity_type=activityType, private=True)
             ## set to private first, change later if requested
             print("Track uploaded to Strava, processing")
             while not returnValue.is_complete:
