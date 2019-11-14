@@ -23,7 +23,7 @@ import time
 #import datetime # for downloads from Strava
 #from lxml import etree # for extensions (sensors etc.)
 
-class stravaUploader():
+class stravaAtHome():
     """ 
     Upload GPX track to Strava.
     M.Mueller@astro.rug.nl, 2018/02/20
@@ -33,67 +33,109 @@ class stravaUploader():
     Update 2019/11/09+, M.Mueller@astro.rug.nl:
       new Strava authentication scheme using access tokens and refresh tokens.
     """
-    refreshTokenFile='token' # read-write access to athlete's data
-    clientIDfile = 'client.secret' # IDs my software: clientID,secret (separated by comma)
-    scopesNeeded = ['activity:read_all','activity:write']  # hard-wire for now.  Make more flexible for stand-alone authenticator class?
     port = 5000
     redirectHost='localhost'
 
-    def authenticateFromRefreshToken(self, refreshToken=None):
+    def ensureAccess( self, thoroughCheck=False ):
         """
-        Connect client using refresh token, return whether or not that succeeded
+        Check if access token is fresh, refresh otherwise.
+        Returns True if success, False otherwise.
+        If thorough check is requested (either through flag here 
+        or through override-flag in constructor), then
+        check if we're able to actually connect to Strava.
         """
-        if refreshToken is None:
-            if not os.path.isfile(self.refreshTokenFile):
-                return False        
-            refreshToken=open(self.refreshTokenFile).read().strip()
-        try:
-            self.refreshAccessToken( refreshToken )
+        if self.expires_at - time.time() < self.minTimeLeft :
+            # access token is expired or will expire within self.minTimeLeft
+            try :
+                self.refreshAccessToken( )
+            except AccessUnauthorized :
+                print("Couldn't authenticate using refresh token!")
+                return False
+            except Exception as e:
+                print("Something unexpected went wrong during authenticating (?)")
+                print(e.__class__)
+                print(str(e))
+                raise
+        if not (thoroughCheck or self.checkAccessAlwaysThorough) :
+            return True
+        # thorough check requested:
+        try :
             dummy=self.client.get_athlete().weight # will fail if token invalid
             return True
         except AccessUnauthorized:
-            print("Couldn't authenticate using refresh token!")
+            print("Strava access not authenticated!")
             return False
         except Exception as e:
-            print("Something unexpected went wrong during authenticating (?)")
+            print("Something unexpected went wrong during access to Strava (?)")
             print(e.__class__)
             print(str(e))
-            raise
+            raise          
 
-    def refreshAccessToken( self, refreshToken=None ):
+        
+    def authenticateFromFile( self, thoroughCheck=False ):
         """
-        Retrieve new access token and save in client.  Save (new?) refresh token in file.
+        Read in tokens and expiry date from file, try and authenticate.
+        Return value: False if failure, True otherwise
         """
-        if refreshToken is None :
-            refreshToken = client.token_response['refresh_token']
-        self.updateTokens( self.client.refresh_access_token( \
+        if not os.path.isfile(self.tokenFile):
+            # Token file not present
+            return False
+        dummy = open(self.tokenFile).read().strip().split()
+        assert len(dummy) == 3
+        dummy[1] = int(dummy[1]) # expires_at is int (seconds since epoch)
+        self.client.access_token = dummy[0]
+        self.expires_at = dummy[1]
+        self.refresh_token = dummy[2]
+        ### If token present, can't check scopes granted (or can I?).
+        ### Assume we have everything we need to prevent false negatives in checkScopes().
+        self.scopesGranted = self.scopesNeeded
+        return self.ensureAccess( thoroughCheck )
+
+
+    def refreshAccessToken( self ):
+        """
+        Retrieve new access token + expiry date from Strava.  
+        Save in client and in file.
+        """
+        try :
+            refresh = self.refresh_token
+        except :
+            # No refresh token provided in file, yet can get here (e.g.: user declined authorization)
+            return
+        # retrieve from Strava
+        response = self.client.refresh_access_token( \
             client_id=self.cl_id, client_secret=self.cl_secret, \
-            refresh_token=refreshToken ))
+            refresh_token=self.refresh_token )
+        # update in client
+        self.updateTokens( response )
         return
 
+    
     def updateTokens( self, response ):
         """ 
-        Update access token, refresh token, and expiry date in self.client. 
-        Save refresh token to file.
+        Update access token, refresh token, and expiry date from response.
+        Save tokens to file.
         Argument response assumed to be dictionary with three elements 'access_token', 'refresh_token', 'expires_at'
         """
         #print( 'Updating tokens in client')
-        self.client.token_response = response
-        self.client.access_token = self.client.token_response['access_token']
-        self.client.token_expires_at = self.client.token_response['expires_at']
-        athlete=self.client.get_athlete() # does access token work?
-        self.client.authenticated=True
-        open(self.refreshTokenFile, 'w').write(self.client.token_response['refresh_token']+'\n')
+        self.client.access_token = response['access_token']
+        self.expires_at = response['expires_at']
+        self.refresh_token = response['refresh_token']
+        #athlete=self.client.get_athlete() # does access token work?  -- checking elsewhere, not here
+        outputText = "%s %i %s"%(response['access_token'], response['expires_at'], response['refresh_token'])
+        open(self.tokenFile, 'w').write(outputText+'\n')
         return
 
+    
     def getAccessToken(self, code):
         """
-        Use temp code retrieved from web request to get access token and refresh token.
-        Write refresh token to file.
+        First Strava authentication (user @ HTTP server): 
+        get tokens in exchange for code retrieved from web request.
         """
         #print("Requesting new tokens")
-        self.updateTokens( self.client.exchange_code_for_token(
-            client_id=self.cl_id, client_secret=self.cl_secret, code=code))
+        response = self.client.exchange_code_for_token(
+            client_id=self.cl_id, client_secret=self.cl_secret, code=code)
+        self.updateTokens( response )
         return
 
     
@@ -119,73 +161,120 @@ class stravaUploader():
                 code = urlparse.parse_qs(urlparse.urlparse(self.path).query)['code'][0]
             except KeyError :
                 self.wfile.write("Access was denied by user".encode())
-                assert False # think of some better error handling here...
+                self.stravaUploaderInstance.client.access_token = None
+                return
             scope = urlparse.parse_qs(urlparse.urlparse(self.path).query)['scope'][0]
-            for s in self.stravaUploaderInstance.scopesNeeded:
-                assert s in scope # This, too, needs refinement.....
-            self.wfile.write('Success!  Requesting permanent access token.\n'.encode())
+            self.stravaUploaderInstance.scopesGranted = scope
+            self.wfile.write('Success!  Requesting permanent refresh token.\n'.encode())
             try:
                 self.stravaUploaderInstance.getAccessToken(code)
-                self.wfile.write('Success!  Now upload track.\n'.encode())
+                self.wfile.write('Strava authentication successful.\n'.encode())
             except Exception as e:
                 print("Something went wrong:")
                 print(e)
                 print(e.__class__)
+                self.wfile.write( (e.__str__()+'\n').encode() )
                 ## Any cleaning-up to do?  Close HTTP server or something?
                 raise
             return
 
     
-    def getUserConsent(self):
+    def getUserConsent( self ):
         """
-        Obtain and save an access token, user permitting.
+        Ask user to authorize Strava access using web request; 
+        retrieve tokens from server and save them.
         """
         redirectUrl='http://'+self.redirectHost+':%d/authorized' % self.port
         authorize_url = self.client.authorization_url(client_id=self.cl_id, redirect_uri=redirectUrl, scope=self.scopesNeeded)
         httpd = self.StravaServer((self.redirectHost, self.port), self.StravaAuthHandler, self)
         dummy=webbrowser.open(authorize_url)
-        httpd.handle_request()  
-        # Obtain and save refresh token, and authenticate self.client
+        httpd.handle_request()
+        if self.client.access_token is None :
+            # User denied authorization (see StravaAuthHandler.do_GET)
+            print( "Please authorize this tool to access your Strava data; it won't work otherwise" )
+            raise RuntimeError( 'Authorization denied' )
         return
 
     
-    def __init__(self, inputFileName, activityName=None, commute=None, private=None, batchmode=False):
+    def __init__( self, batchmode=False, thoroughCheck=True, checkAccessAlwaysThorough=False ):
         # batchmode: won't open web browser, neither to view track, nor to get user consent if no token is present
-        self.client=Client()
+        # thoroughCheck: on first call to ensureAccess (in __init__), try to actually
+        #   connect to Strava.  Else, access_token is only checked locally,
+        #   against its expiry date.
+        # checkAccessAlwaysThorough: all calls to ensureAccess are 'thorough'
+        #   (overriding any possible user-provided parameters at call time)
+        #
+        ### Read in parm file (to be implemented)
+        self.checkAccessAlwaysThorough=checkAccessAlwaysThorough
+        self.minTimeLeft = 3600 # min validity (in s) of access token after ensureAccess
+        self.tokenFile='token' # access token; expiry date; refresh token
+        self.clientIDfile = 'client.secret' # IDs my software: clientID,secret (separated by comma)
+        self.scopesNeeded = ['activity:read_all','activity:write']  # hard-wire for now.  Make more flexible for stand-alone authenticator class?
+        self.batchmode = batchmode
+        ## Parse arguments
         # Read in client ID and password:
         self.cl_id,self.cl_secret=open(self.clientIDfile).read().strip().split(',')
-        if not self.authenticateFromRefreshToken():
+        self.client=Client( )  # make that super() call, with extra keywords
+        self.client.access_token=None  ## unless user has specified access token?!?  disable that?!?
+        self.expires_at = 0
+        if not self.authenticateFromFile( thoroughCheck ):
             if batchmode:
-                print("No token present in batch mode: Strava upload failed")
+                print("No token present in batch mode: Strava authentication failed")
                 return
-            self.getUserConsent()
+            try :
+                self.getUserConsent()
+            except RuntimeError as e :
+                print( e )
+                return
+            self.checkScopes()
+        return
+
+
+    def checkScopes( self ):
+        if self.client.access_token is None :
+            return False
+        for s in self.scopesNeeded :
+            if s not in self.scopesGranted :
+                print( "Insufficient permissions granted: "+self.scopesGranted+", but need "+",".join(self.scopesNeeded) )
+                print( "Consider deleting file ", self.tokenFile )
+                return False
+        return True
+
+    
+    def uploadGPX( self, inputFileName, activityType=None, activityName=None, commute=None, private=None ) :
+        """
+        Upload GPX file to Strava, return True if successful.
+        If not self.batchmode, show uploaded activity in web browser.
+        """
+        # self.ensureAccess( thoroughCheck ) ## Leave it to user to ensure access!
         try:
             fileObject=open(inputFileName,'r')
         except:
-            # file couldn't be opened for reading
-            raise
+            print( "Input file %s couldn't be opened for reading"%inputFileName )
+            return False
         try:
-            returnValue=self.client.upload_activity(fileObject, data_type='gpx', activity_type='ride', private=True)
+            returnValue=self.client.upload_activity(fileObject, data_type='gpx', activity_type=activityType, private=True)
+            ## set to private first, change later if requested
             print("Track uploaded to Strava, processing")
             while not returnValue.is_complete:
                 print('.')
                 time.sleep(1)
                 returnValue.poll()
         except ActivityUploadFailed as e:
-            print("Strava upload failed:")
-            print(e)
-            return
+            print( "Strava upload failed:" )
+            print( e )
+            return False
         except Exception as e:
-            print(e)
-            print(e.__class__)  
+            print( e )
+            print( e.__class__ )  
             raise
         if returnValue.is_error:
             print ('Upload failed!') # Can we ever get here?
-            return
+            return False
         print('Upload succeeded!')
         activityID = returnValue.activity_id
         self.client.update_activity(activityID, name=activityName, commute=commute, private=private)
-        if not batchmode:
+        if not self.batchmode:
             webbrowser.open('https://www.strava.com/activities/%i'%activityID)
-        return
+        return True
 
