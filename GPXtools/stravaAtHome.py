@@ -43,7 +43,7 @@ class stravaAtHome( Client ):
     * 0.5: 2018/02/20: make pip installable
     * 0.6: 2018/03/08: improve GPX uploader
     * 0.7: 2019/10/28: update to stravalib 0.6 (refresh tokens)
-    * 0.8: 2019/11/15: inherit from stravalib.Client
+    * 0.8: 2019/11/15: inherit from stravalib.Client, parameters in YAML file
     """
     port = 5000
     redirectHost='localhost'
@@ -52,7 +52,7 @@ class stravaAtHome( Client ):
         """
         Check if access token is fresh, refresh otherwise.
         Returns True if success, False otherwise.
-        If thorough check is requested (either through flag here 
+        If thoroughCheck is requested (either through flag here 
         or through override-flag in constructor), then
         check if we're able to actually connect to Strava.
         """
@@ -93,13 +93,21 @@ class stravaAtHome( Client ):
             # Token file not present
             return False
         dummy = open(self.tokenFile).read().strip().split()
-        assert len(dummy) == 3
-        dummy[1] = int(dummy[1]) # expires_at is int (seconds since epoch)
-        self.access_token = dummy[0]
-        self.expires_at = dummy[1]
-        self.refresh_token = dummy[2]
-        ### If token present, can't check scopes granted (or can I?).
-        ### Assume we have everything we need to prevent false negatives in checkScopes().
+        try :
+            if len(dummy) != 3 :
+                raise RuntimeError( "Token file needs to have three entries; consider deleting it and having the app re-generate it" )
+            dummy[1] = int(dummy[1]) # expires_at is int (seconds since epoch)
+            self.access_token = dummy[0]
+            self.expires_at = dummy[1]
+            self.refresh_token = dummy[2]
+        except Exception as e :
+            print( "An error occurred while reading in token file "+self.tokenFile )
+            print( "Consider deleting it." )
+            print( e.__str__() )
+            print( e.__class__ )
+            return False
+        ## If token present, can't check scopes granted (or can I?).
+        ## Assume we have everything we need to prevent false negatives in checkScopes().
         self.scopesGranted = self.scopesNeeded
         return self.ensureAccess( thoroughCheck )
 
@@ -129,13 +137,11 @@ class stravaAtHome( Client ):
         Save tokens to file.
         Argument response assumed to be dictionary with three elements 'access_token', 'refresh_token', 'expires_at'
         """
-        #print( 'Updating tokens in client')
         self.access_token = response['access_token']
         self.expires_at = response['expires_at']
         self.refresh_token = response['refresh_token']
-        #athlete=self.get_athlete() # does access token work?  -- checking elsewhere, not here
-        outputText = "%s %i %s"%(response['access_token'], response['expires_at'], response['refresh_token'])
-        open(self.tokenFile, 'w').write(outputText+'\n')
+        outputText = "%s %i %s\n"%(response['access_token'], response['expires_at'], response['refresh_token'])
+        open(self.tokenFile, 'w').write( outputText )
         return
 
     
@@ -144,7 +150,6 @@ class stravaAtHome( Client ):
         First Strava authentication (user @ HTTP server): 
         get tokens in exchange for code retrieved from web request.
         """
-        #print("Requesting new tokens")
         response = self.exchange_code_for_token(
             client_id=self.cl_id, client_secret=self.cl_secret, code=code)
         self.updateTokens( response )
@@ -159,7 +164,10 @@ class stravaAtHome( Client ):
             RequestHandlerClass.stravaUploaderInstance=stravaUploaderInstance
             return
     class StravaAuthHandler(BaseHTTPRequestHandler):
-        """ Deal with web traffic to redirect URL (redirected from Strava, URL contains temp code)"""
+        """ 
+        Deal with web traffic to redirect URL during Strava authentication
+        (redirected from Strava, URL contains temp code)
+        """
         stravaUploaderInstance=None
         def do_HEAD (self):
             return self.do_GET()
@@ -174,6 +182,7 @@ class stravaAtHome( Client ):
             except KeyError :
                 self.wfile.write("Access was denied by user".encode())
                 self.stravaUploaderInstance.access_token = None
+                self.stravaUploaderInstance.expires_at = 0
                 return
             scope = urlparse.parse_qs(urlparse.urlparse(self.path).query)['scope'][0]
             self.stravaUploaderInstance.scopesGranted = scope
@@ -197,9 +206,12 @@ class stravaAtHome( Client ):
         retrieve tokens from server and save them.
         """
         redirectUrl='http://'+self.redirectHost+':%d/authorized' % self.port
-        authorize_url = self.authorization_url(client_id=self.cl_id, redirect_uri=redirectUrl, scope=self.scopesNeeded)
-        httpd = self.StravaServer((self.redirectHost, self.port), self.StravaAuthHandler, self)
-        dummy=webbrowser.open(authorize_url)
+        authorize_url = self.authorization_url(
+            client_id=self.cl_id, redirect_uri=redirectUrl,
+            scope=self.scopesNeeded)
+        httpd = self.StravaServer((self.redirectHost, self.port),
+                                  self.StravaAuthHandler, self)
+        dummy=webbrowser.open( authorize_url )
         httpd.handle_request()
         if self.access_token is None :
             # User denied authorization (see StravaAuthHandler.do_GET)
@@ -215,52 +227,59 @@ class stravaAtHome( Client ):
         * clientIDfile (clientID,clientSecret)
         * tokenFile (will be generated by this tool)
         * scopesNeeded (list; reading requires activity:read_all, writing requires activity:write)
-        * [.....]
+        * Any extra parameters will be ignored
         Optional:
-        * minTimeLeft (min validity [in s] of access token after ensureAccess; default 3,600)
+        * minTimeLeft (min validity [in s] of access token 
+          after ensureAccess; default 3,600)
 
         """
         with open( parmFile, 'r' ) as f:
             try:
-                parms = yaml.safe_load( f )
+                parmsFromFile = yaml.safe_load( f )
             except yaml.YAMLError as exc:
                 print(exc)
-                raise
-        ## do some error checking: all required keywords present?
-        ## Any that we don't want?
-        print( parms )
-        self.tokenFile = parms['tokenFile']
-        self.clientIDfile = parms['clientIDFile']
-        self.scopesNeeded = parms['scopesNeeded']
-        if 'minTimeLeft' in parms :
-            self.minTimeLeft = parms['minTimeLeft']
+                raise 
+        ## Error checking: are all required keywords present?
+        parmsNeeded = [ 'tokenFile', 'clientIDFile', 'scopesNeeded' ]
+        for par in parmsNeeded :
+            if par not in parmsFromFile :
+                raise RuntimeError( "stravaAtHome: need keyword %s in parameter file!"%par )
+        self.tokenFile = parmsFromFile['tokenFile']
+        self.clientIDfile = parmsFromFile['clientIDFile']
+        self.scopesNeeded = parmsFromFile['scopesNeeded']
+        if 'minTimeLeft' in parmsFromFile :
+            self.minTimeLeft = parmsFromFile['minTimeLeft']
         else :
             self.minTimeLeft = 3600
-        #assert False
         return
 
     
-    def __init__( self, parmFile, batchmode=False, thoroughCheck=True, checkAccessAlwaysThorough=False, **keywords ):
-        # batchmode: won't open web browser, neither to view track, nor to get user consent if no token is present
-        # thoroughCheck: on first call to ensureAccess (in __init__), try to actually
-        #   connect to Strava.  Else, access_token is only checked locally,
-        #   against its expiry date.
-        # checkAccessAlwaysThorough: all calls to ensureAccess are 'thorough'
-        #   (overriding any possible user-provided parameters at call time)
-        #
-        ### Read in parm file
+    def __init__( self, parmFile, batchmode=False, thoroughCheck=True, checkAccessAlwaysThorough=False, **keywords ) :
+        """
+        batchmode: won't open web browser, neither to view track, nor to get user consent if no token is present
+        thoroughCheck: on first call to ensureAccess (in __init__), try to actually
+          connect to Strava.  Else, access_token is only checked locally,
+          against its expiry date.
+        checkAccessAlwaysThorough: all calls to ensureAccess are 'thorough'
+          (overriding any possible user-provided parameters at call time)
+        """
+        ## Read in parm file
         self.readParmFile( parmFile )
+        ## Parse arguments
         self.checkAccessAlwaysThorough=checkAccessAlwaysThorough
         self.batchmode = batchmode
-        ## Parse arguments
-        # Read in client ID and password:
-        self.cl_id,self.cl_secret=open(self.clientIDfile).read().strip().split(',')
-
+        ## Read in client ID and password:
+        self.cl_id,self.cl_secret=open(
+             self.clientIDfile).read().strip().split(',')
+        ## Initializations
         super().__init__( **keywords )  # any extra keywords are passed on to stravalib.Client
-        
         self.access_token=None # will overwrite any access token the user may have provided (that's not how this class is intended to be used, anyway)
         self.expires_at = 0
-        if not self.authenticateFromFile( thoroughCheck ):
+        ## Check if tokens are present in file, refresh if needed
+        if not self.authenticateFromFile( thoroughCheck ) :
+            ## No tokens present, need user to authorize access
+            ## If authentication fails or is denied, no exception
+            ## is raised, but access_token stays None.
             if batchmode:
                 print("No token present in batch mode: Strava authentication failed")
                 return
@@ -269,11 +288,19 @@ class stravaAtHome( Client ):
             except RuntimeError as e :
                 print( e )
                 return
+            ## A warning will be displayed if the user didn't allow
+            ## all access scopes requested.  It's on the calling function
+            ## to raise exceptions / re-ask the user / whatever.
             self.checkScopes()
         return
 
 
     def checkScopes( self ):
+        """
+        Were all Strava 'scopes' (various levels of read/write access)
+        that were requested in constructor actually granted by user?
+        Returns True if yes, False if not.
+        """
         if self.access_token is None :
             return False
         for s in self.scopesNeeded :
@@ -284,9 +311,18 @@ class stravaAtHome( Client ):
         return True
 
     
-    def uploadGPX( self, inputFileName, activityType=None, activityName=None, commute=None, private=None ) :
+    def uploadFile( self, inputFileName, activityType=None, activityName=None, commute=None, private=None, fileFormat=None ) :
         """
-        Upload GPX file to Strava, return True if successful.
+        Uploads GPS file to Strava, return True if successful.
+        activityType, case-insensitive type of activity. Possible values: 
+          ride, run, swim, workout, hike, walk, nordicski, alpineski, 
+          backcountryski, iceskate, inlineskate, kitesurf, rollerski, windsurf,
+          workout, snowboard, snowshoe 
+          Type detected from file overrides, 
+          uses athlete’s default type if not specified
+        fileFormat: will be determined from filename extension if None, 
+          otherwise set to one of 
+          fit, fit.gz, tcx, tcx.gz, gpx, gpx.gz
         If not self.batchmode, show uploaded activity in web browser.
         """
         # self.ensureAccess( thoroughCheck ) ## Leave it to user to ensure access!
@@ -295,8 +331,11 @@ class stravaAtHome( Client ):
         except:
             print( "Input file %s couldn't be opened for reading"%inputFileName )
             return False
+        if fileFormat is None :
+            fileFormat = os.path.splitext( inputFileName )[1].lower()
+            fileFormat = fileFormat[1:] # strip leading dot
         try:
-            returnValue=self.upload_activity(fileObject, data_type='gpx', activity_type=activityType, private=True)
+            returnValue=self.upload_activity(fileObject, data_type=fileFormat, activity_type=activityType, private=True)
             ## set to private first, change later if requested
             print("Track uploaded to Strava, processing")
             while not returnValue.is_complete:
@@ -316,7 +355,9 @@ class stravaAtHome( Client ):
             return False
         print('Upload succeeded!')
         activityID = returnValue.activity_id
-        self.update_activity(activityID, name=activityName, commute=commute, private=private)
+        ## Now set activity details
+        self.update_activity(activityID, name=activityName,
+                             commute=commute, private=private)
         if not self.batchmode:
             webbrowser.open('https://www.strava.com/activities/%i'%activityID)
         return True
