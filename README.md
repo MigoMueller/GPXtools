@@ -1,30 +1,34 @@
 # GPXtools
-Python tools to mess with (bicycle) GPS tracks 
+Python tools to mess with (bicycle) GPS tracks. Includes stravaAtHome to interface with Strava.
 
-### Installation
-In principle, it should be enough to just run
+## Installation
+
+#### Pip installation (not recommended)
+In principle, it's enough to just run
 ```
 pip install .
 ```
-in the directory containing this file (after cloning this repo from Github).  This assumes you have a working installation of Python3 including pip (which is fairly standard).
+in the directory containing this file (after cloning /downloading this repo from Github).  This assumes you have a working installation of Python3 including pip (which is fairly standard).  Pip should be able to ID and download all dependencies (although they may clash with version requirements by other Python packages you may have installed).
 
-For extra safety and convenience, I recommend using a Python environment manager such as Anaconda.  A convenience script
+#### Installation within conda (recommended)
+For extra safety and convenience, I recommend using a Python environment manager such as Anaconda (https://www.anaconda.com/distribution/).  A convenience script
 ```
 installReqsInConda.bash
 ```
 is provided that will create a conda environment 'gpx' containing all packages required by GPXtools.  It will also add the package nb_conda to your conda 'root' environment, allowing you to use the gpx kernel within Jupyter notebooks started from root.
+
 Once the dependencies are installed, GPXtools can be installed using 
 ```
 reinstallGPX.sh
 ```
 If GPXtools is installed within a conda environment, remember to always activate it before using GPXtools!
-```
+```bash
 conda activate
 conda activate gpx
 ```
 
-### Plotting tracks
-```
+## Plotting tracks
+```python
 from gpxTools import gpxTools
 tool=gpxTools()
 tool.plotTracks(['track1.gpx', track2.gpx'])
@@ -33,16 +37,18 @@ tool.plotTracks(['track1.gpx', track2.gpx'])
 The integer zoom level defaults to 10, but can be set manually using the parameter osmZoomLevel.
 Work is in progress to let the script figure out an appropriate zoom level dynamically.
 
-### Merging tracks
-```
+## Merging tracks
+```python
 from gpxTools import gpxTools
 tool=gpxTools()
 tool.mergeTracks(['track1.gpx','track2.gpx'], 'out.gpx')
 ```
 ... outputs a time-ordered GPX file in which the tracks in the input files are merged / concatenated.  There must be no time overlap between tracks.
 
-### Applying a privacy zone (rejecting track points within some distance around given points)
-```
+This is useful to combine tracks taken before and after an extended break / GPS instrument failure.  Another use-case is to combine inbound and outbound legs of commute rides.
+
+## Applying a privacy zone (rejecting track points within some distance around given points)
+```python
 from gpxTools import gpxTools
 from astropy import units as u
 tool=gpxTools()
@@ -51,9 +57,19 @@ radii = [100*u.m, 12*u.km]
 toolmapplyPrivacyZone('interContinentalTrack.gpx', addresses, radii)
 ```
 
-### Uploading tracks to Strava
-See sample file ```testStravaAtHome.py``` along with ```parms.yaml```.
-Requires you to set up a Strava API client, which is easy!  See https://www.strava.com/settings/api
+## stravaAtHome
+GPXtools includes stravaAtHome, an interface for Strava access based on stravalib (https://github.com/hozn/stravalib) v0.10, which in turn is based on the Strava API v3.  Neither GPXtools nor stravaAtHome are affiliated with Strava in any way!
 
-### More Strava goodness
+stravaAtHome includes a full authentication procedure that retrieves, stores, and refreshes Strava access tokens.  On the first run of the tool, users have to manually grant access.  Subsequent runs can be done in batch mode.  
+
+Strava tokens will be saved on your local hard-drive in cleartext, i.e., unencrypted (the location and name of the file are specified by the user).  While stravaAtHome will not send your tokens anywhere, saving them unencrypted is, in principle, a security risk to your Strava account.  _I welcome any suggestions on how to improve this!_  In the meantime, proceed at your own risk.  
+
+Strava authentication requires you to set-up a Strava API client, which is easy!  See https://www.strava.com/settings/api
+
+Strava tokens are tied to your API account.  You can withdraw access to your API account, thereby invalidating all tokens, at any time in your Strava settings.  
+
+#### Uploading tracks to Strava
+See sample file `testStravaAtHome.py` along with `parms.yaml`.
+
+#### More Strava goodness
 ... is under development ...
