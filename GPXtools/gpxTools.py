@@ -178,7 +178,7 @@ class privacyZone:
             return
         except AttributeError:
             pass # assume addresses were passes
-        self.coords=[self.getCoordsFromAddress(add) for add in addresses]
+        self.coords=[getCoordsFromAddress(add) for add in addresses]
         return
     def isPointTooClose(self, p):
         for coo, r in zip(self.coords, self.radii):
