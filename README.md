@@ -29,17 +29,11 @@ conda activate
 conda activate gpx
 ```
 
-## Plotting tracks
-```python
-from GPXtools import gpxTools
-tool=gpxTools.gpxTools()
-tool.plotTracks(['track1.gpx', track2.gpx'])
-```
-... will plot two tracks on a map.  Map data will be retrieved from OSM.
-The integer zoom level defaults to 10, but can be set manually using the parameter osmZoomLevel.
-Work is in progress to let the script figure out an appropriate zoom level dynamically.
+## GPX tools
 
-## Merging tracks
+Various tools to deal with GPX files, developped as need arose.
+
+#### Merging tracks
 ```python
 from GPXtools import gpxTools
 tool=gpxTools.gpxTools()
@@ -49,15 +43,27 @@ tool.mergeTracks(['track1.gpx','track2.gpx'], 'out.gpx')
 
 This is useful to combine tracks taken before and after an extended break / GPS instrument failure.  Another use-case is to combine inbound and outbound legs of commute rides.
 
-## Applying a privacy zone (rejecting track points within some distance around given points)
+#### Applying a privacy zone 
+Reads in a GPX file, discards all track points within some radius around given points (addresses or latitude/longitude pairs), then saves output as GPX.  Output GPX file name defaults to input_pz.gpx, but can be set by the user.
+
 ```python
 from GPXtools import gpxTools
 from units import unit as u
-tool=gpxTools.gpxTools()
 addresses=['Grote Markt, Groningen', '1 5th Avenue, New York City']
 radii = [u('m')(100), u('mi')(0.2)]
 gpxTools.applyPrivacyZone('interContinentalTrack.gpx', addresses, radii)
 ```
+
+#### Plotting tracks
+(broken as of 2019/11/19)
+```python
+from GPXtools import gpxTools
+tool=gpxTools.gpxTools()
+tool.plotTracks(['track1.gpx', track2.gpx'])
+```
+... will plot two (or more!) tracks on a map.  Map data will be retrieved from OSM.
+The integer zoom level defaults to 10, but can be set manually using the parameter osmZoomLevel.
+Work is in progress to let the script figure out an appropriate zoom level dynamically.
 
 ## stravaAtHome
 GPXtools includes stravaAtHome, an interface for Strava access based on stravalib (https://github.com/hozn/stravalib) v0.10, which in turn is based on the Strava API v3.  Neither GPXtools nor stravaAtHome are affiliated with Strava in any way!
