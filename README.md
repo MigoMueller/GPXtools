@@ -28,3 +28,10 @@ addresses=['Grote Markt, Groningen', '1 5th Avenue, New York City']
 radii = [100*u.m, 12*u.km]
 toolmapplyPrivacyZone('interContinentalTrack.gpx', addresses, radii)
 ```
+
+### Uploading tracks to Strava
+See sample file testStravaAtHome.py along with parms.yaml.
+Requires you to set up a Strava API client, which is easy!  See https://www.strava.com/settings/api
+
+### More Strava goodness
+... is under development ...

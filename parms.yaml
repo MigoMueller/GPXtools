@@ -1,0 +1,19 @@
+# ID and secret of Strava API client, see
+#   https://www.strava.com/settings/api
+# File must have format clientID,clientSecret
+clientIDFile : client.secret
+
+# The authorizations required by stravaAtHome.
+# Possible values: 'read', 'read_all',
+#                  'profile:read_all', 'profile:write', 'profile:read_all',
+#                  'activity:read_all', 'activity:write'
+# Empty list ([ ]) means 'public'
+scopesNeeded : [activity:read_all, activity:write]
+
+# App will generate this file if not present,
+# just make sure the path is writable
+tokenFile : token
+
+
+# Just to demonstrate that extra keywords don't hurt:
+notNeeded : [ dummyValue, 42 ]

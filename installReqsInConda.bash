@@ -21,7 +21,7 @@ source $(conda info --base)/etc/profile.d/conda.sh
 conda activate root
 conda install nb_conda $flag
 # for kernels to appear in Jupyter notebooks
-conda create --name gpx python=3 matplotlib ipykernel jupyter ipython lxml cartopy fiona arrow $flag
+conda create --name gpx python=3 matplotlib ipykernel jupyter ipython lxml cartopy fiona arrow pyyaml $flag
 # ipykernel: so this env shows up in Jupyter notebook
 # lxml: speeds up gpxpy
 # fiona: Pythonic IO-lib for geo data formats including gpx, shapes only (time info is forgotten)
