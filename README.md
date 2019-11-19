@@ -5,20 +5,20 @@ Python tools to mess with (bicycle) GPS tracks. Includes stravaAtHome to interfa
 
 #### Pip installation (not recommended)
 In principle, it's enough to just run
-```
+```bash
 pip install .
 ```
 in the directory containing this file (after cloning /downloading this repo from Github).  This assumes you have a working installation of Python3 including pip (which is fairly standard).  Pip should be able to ID and download all dependencies (although they may clash with version requirements by other Python packages you may have installed).
 
 #### Installation within conda (recommended)
 For extra safety and convenience, I recommend using a Python environment manager such as Anaconda (https://www.anaconda.com/distribution/).  A convenience script
-```
+```bash
 installReqsInConda.bash
 ```
 is provided that will create a conda environment 'gpx' containing all packages required by GPXtools.  It will also add the package nb_conda to your conda 'root' environment, allowing you to use the gpx kernel within Jupyter notebooks started from root.
 
 Once the dependencies are installed, GPXtools can be installed using 
-```
+```bash
 reinstallGPX.sh
 ```
 If GPXtools is installed within a conda environment, remember to always activate it before using GPXtools!
@@ -49,12 +49,12 @@ This is useful to combine tracks taken before and after an extended break / GPS 
 
 ## Applying a privacy zone (rejecting track points within some distance around given points)
 ```python
-from gpxTools import gpxTools
-from astropy import units as u
-tool=gpxTools()
+from GPXtools import gpxTools
+from units import unit as u
+tool=gpxTools.gpxTools()
 addresses=['Grote Markt, Groningen', '1 5th Avenue, New York City']
-radii = [100*u.m, 12*u.km]
-toolmapplyPrivacyZone('interContinentalTrack.gpx', addresses, radii)
+radii = [u('m')(100), u('mi')(0.2)]
+gpxTools.applyPrivacyZone('interContinentalTrack.gpx', addresses, radii)
 ```
 
 ## stravaAtHome
