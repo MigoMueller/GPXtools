@@ -29,8 +29,8 @@ conda activate gpx
 
 ## Plotting tracks
 ```python
-from gpxTools import gpxTools
-tool=gpxTools()
+from GPXtools import gpxTools
+tool=gpxTools.gpxTools()
 tool.plotTracks(['track1.gpx', track2.gpx'])
 ```
 ... will plot two tracks on a map.  Map data will be retrieved from OSM.
@@ -39,8 +39,8 @@ Work is in progress to let the script figure out an appropriate zoom level dynam
 
 ## Merging tracks
 ```python
-from gpxTools import gpxTools
-tool=gpxTools()
+from GPXtools import gpxTools
+tool=gpxTools.gpxTools()
 tool.mergeTracks(['track1.gpx','track2.gpx'], 'out.gpx')
 ```
 ... outputs a time-ordered GPX file in which the tracks in the input files are merged / concatenated.  There must be no time overlap between tracks.
