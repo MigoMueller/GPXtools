@@ -1,5 +1,6 @@
 # GPXtools
 Python tools to mess with (bicycle) GPS tracks. Includes stravaAtHome to interface with Strava.
+v0.8, Nov 2019.
 
 ## Installation
 
