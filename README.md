@@ -1,7 +1,29 @@
 # GPXtools
-Tools to mess with bicycle GPS tracks 
+Python tools to mess with (bicycle) GPS tracks 
 
-### Plotting tracks:
+### Installation
+In principle, it should be enough to just run
+```
+pip install .
+```
+in the directory containing this file (after cloning this repo from Github).  This assumes you have a working installation of Python3 including pip (which is fairly standard).
+
+For extra safety and convenience, I recommend using a Python environment manager such as Anaconda.  A convenience script
+```
+installReqsInConda.bash
+```
+is provided that will create a conda environment 'gpx' containing all packages required by GPXtools.  It will also add the package nb_conda to your conda 'root' environment, allowing you to use the gpx kernel within Jupyter notebooks started from root.
+Once the dependencies are installed, GPXtools can be installed using 
+```
+reinstallGPX.sh
+```
+If GPXtools is installed within a conda environment, remember to always activate it before using GPXtools!
+```
+conda activate
+conda activate gpx
+```
+
+### Plotting tracks
 ```
 from gpxTools import gpxTools
 tool=gpxTools()
